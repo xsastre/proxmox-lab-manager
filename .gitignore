@@ -1,0 +1,6 @@
+*.tar.zst
+*.tar.gz
+*.vzdump
+*.qcow2
+*.img
+*.vma
