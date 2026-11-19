@@ -5,7 +5,18 @@
 ![Nginx](https://img.shields.io/badge/Nginx-Proxy-009639?style=for-the-badge&logo=nginx&logoColor=white)
 ![HTML5](https://img.shields.io/badge/Frontend-Vanilla_HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 
-**Proxmox Lab Manager** és una aplicació web lleugera, autònoma i sense dependències de backend dissenyada per a entorns educatius. Permet als docents desplegar de forma massiva laboratoris virtuals aïllats per a cada alumne utilitzant VLANs.
+**Proxmox Lab Manager** és una aplicació web lleugera, autònoma i sense dependències de backend dissenyada per a entorns educatius. Permet als docents desplegar de forma massiva laboratoris virtuals i contenidors per a desenes d'alumnes en segons.
+
+---
+
+## 🚀 Posada en marxa
+
+El sistema es pot posar en marxa de dues formes:
+
+1. **Utilitzant les imatges ja preparades:** seguiu les indicacions del punt 4, [Descarregar i Importar les Imatges](#-descarregar-i-importar-les-imatges). Aquest procediment restaura el contenidor de gestió i la màquina virtual MikroTik CHR preparats prèviament.
+2. **Creant tot l'entorn de zero:** seguiu les indicacions del punt 5, [Guia d'Instal·lació i Desplegament](#-guia-dinstallaci%C3%B3-i-desplegament), per configurar Proxmox, MikroTik CHR i el contenidor de l'aplicació pas a pas.
+
+Podeu triar una opció o l'altra segons si disposeu ja de les imatges de còpia o preferiu construir i configurar totes les parts manualment.
 
 ---
 
@@ -52,14 +63,16 @@ L'entorn es recolza en dos *bridges* virtuals de Proxmox:
 
 ## 📦 Descarregar i Importar les Imatges
 
-La pàgina de [Releases](https://github.com/xsastre/proxmox-lab-manager/releases) publica les còpies de les imatges preparades per al laboratori. Cada asset és una còpia de seguretat de Proxmox i no s'ha d'executar directament:
+> **Opció ràpida — imatges ja preparades:** aquest apartat correspon al punt 4 de la posada en marxa. Utilitzeu-lo si voleu restaurar les còpies preparades sense haver de crear i configurar tot l'entorn de zero.
+
+La pàgina de [Releases](https://github.com/xsastre/proxmox-lab-manager/releases) publica les còpies de les imatges preparades per al laboratori. Cada asset és una còpia de seguretat de Proxmox que podeu restaurar directament.
 
 - `vzdump-lxc-901-2026_11_19-10_13_28.tar.zst`: contenidor LXC de gestió (configuració original ID 901).
 - `vzdump-qemu-108-2026_11_19-10_15_08.vma.zst`: màquina virtual RouterOS MikroTik CHR (configuració original ID 108).
 
 ### Descarregar les imatges
 
-Des d'un navegador, entra a la [release v1.0.0](https://github.com/xsastre/proxmox-lab-manager/releases/tag/v1.0.0) i baixa els dos fitxers des de **Assets**. També es poden descarregar des del shell de Proxmox:
+Des d'un navegador, entra a la [release v1.0.0](https://github.com/xsastre/proxmox-lab-manager/releases/tag/v1.0.0) i baixa els dos fitxers des de **Assets**. També es poden descarregar des del shell amb les ordres següents:
 
 ```bash
 cd /var/lib/vz/dump
@@ -67,7 +80,7 @@ wget https://github.com/xsastre/proxmox-lab-manager/releases/download/v1.0.0/vzd
 wget https://github.com/xsastre/proxmox-lab-manager/releases/download/v1.0.0/vzdump-qemu-108-2026_11_19-10_15_08.vma.zst
 ```
 
-> ⚠️ El directori `/var/lib/vz/dump` correspon al content type **VZDump backup file** del storage `local`. Si el teu storage té un nom diferent, puja els fitxers des de **Datacenter > Storage > local > Backup**.
+> ⚠️ El directori `/var/lib/vz/dump` correspon al content type **VZDump backup file** del storage `local`. Si el teu storage té un nom diferent, puja els fitxers des de **Datacenter > Storage > [storage] > Backups**.
 
 ### Importar i restaurar des de la interfície web
 
@@ -108,6 +121,8 @@ qm start 108
 ---
 
 ## 🛠️ Guia d'Instal·lació i Desplegament
+
+> **Opció manual — creació de zero:** aquest apartat correspon al punt 5 de la posada en marxa. Seguiu-lo si preferiu configurar vosaltres mateixos tot Proxmox, el router MikroTik CHR i l'aplicació web.
 
 ### 1. Preparació de Proxmox VE
 
