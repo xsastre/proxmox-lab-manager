@@ -5,7 +5,7 @@
 ![Nginx](https://img.shields.io/badge/Nginx-Proxy-009639?style=for-the-badge&logo=nginx&logoColor=white)
 ![HTML5](https://img.shields.io/badge/Frontend-Vanilla_HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 
-**Proxmox Lab Manager** és una aplicació web lleugera, autònoma i sense dependències de backend dissenyada per a entorns educatius. Permet als docents desplegar de forma massiva laboratoris virtuals aïllats per a cada alumne utilitzant VLANs, integrant-se directament amb l'API de **Proxmox VE** i automatitzant l'enrutament amb l'API REST de **MikroTik RouterOS**.
+**Proxmox Lab Manager** és una aplicació web lleugera, autònoma i sense dependències de backend dissenyada per a entorns educatius. Permet als docents desplegar de forma massiva laboratoris virtuals aïllats per a cada alumne utilitzant VLANs.
 
 ---
 
@@ -13,11 +13,12 @@
 1. [Característiques](#-característiques)
 2. [Arquitectura de Xarxa](#-arquitectura-de-xarxa)
 3. [Requisits Previs](#-requisits-previs)
-4. [Guia d'Instal·lació i Desplegament](#-guia-dinstal%C2%B7laci%C3%B3-i-desplegament)
+4. [Descarregar i Importar les Imatges](#-descarregar-i-importar-les-imatges)
+5. [Guia d'Instal·lació i Desplegament](#-guia-dinstal%C2%B7laci%C3%B3-i-desplegament)
    - [1. Preparació de Proxmox](#1-preparaci%C3%B3-de-proxmox-ve)
    - [2. Router MikroTik CHR](#2-configuraci%C3%B3-del-router-mikrotik-chr)
    - [3. Desplegament de l'App (LXC + Nginx)](#3-desplegament-de-lapp-web-lxc--nginx)
-5. [Ús de l'Aplicació](#-manual-d%C3%BAs)
+6. [Ús de l'Aplicació](#-manual-d%C3%BAs)
 
 ---
 
@@ -46,6 +47,63 @@ L'entorn es recolza en dos *bridges* virtuals de Proxmox:
 1. Un node **Proxmox VE** (versió 7 o 8).
 2. Plantilles prèviament creades a Proxmox (Ex: *Debian 12 Cloud* en format `qemu template` o imatges `.tar.zst` per a LXC).
 3. Imatge de **MikroTik CHR** importada a Proxmox.
+
+---
+
+## 📦 Descarregar i Importar les Imatges
+
+La pàgina de [Releases](https://github.com/xsastre/proxmox-lab-manager/releases) publica les còpies de les imatges preparades per al laboratori. Cada asset és una còpia de seguretat de Proxmox i no s'ha d'executar directament:
+
+- `vzdump-lxc-901-2026_11_19-10_13_28.tar.zst`: contenidor LXC de gestió (configuració original ID 901).
+- `vzdump-qemu-108-2026_11_19-10_15_08.vma.zst`: màquina virtual RouterOS MikroTik CHR (configuració original ID 108).
+
+### Descarregar les imatges
+
+Des d'un navegador, entra a la [release v1.0.0](https://github.com/xsastre/proxmox-lab-manager/releases/tag/v1.0.0) i baixa els dos fitxers des de **Assets**. També es poden descarregar des del shell de Proxmox:
+
+```bash
+cd /var/lib/vz/dump
+wget https://github.com/xsastre/proxmox-lab-manager/releases/download/v1.0.0/vzdump-lxc-901-2026_11_19-10_13_28.tar.zst
+wget https://github.com/xsastre/proxmox-lab-manager/releases/download/v1.0.0/vzdump-qemu-108-2026_11_19-10_15_08.vma.zst
+```
+
+> ⚠️ El directori `/var/lib/vz/dump` correspon al content type **VZDump backup file** del storage `local`. Si el teu storage té un nom diferent, puja els fitxers des de **Datacenter > Storage > local > Backup**.
+
+### Importar i restaurar des de la interfície web
+
+1. Obre `https://<IP_DE_PROXMOX>:8006` i entra al teu node.
+2. Ves a **Datacenter > Node > local > Backups** i comprova que els dos fitxers estan a la llista.
+3. Selecciona `vzdump-lxc-901-...tar.zst`, prem **Restore** i tria un ID lliure (p. ex. `901`). Selecciona el storage de destinació i prem **Restore**.
+4. Repeteix el procés amb `vzdump-qemu-108-...vma.zst`, assignant un altre ID lliure (p. ex. `108`).
+
+Després de restaurar:
+
+- Comprova les xarxes en **Hardware** i assigna la VM router a `vmbr0` i `vmbr1` segons la guia anterior.
+- Comprova les interfícies i la IP del contenidor LXC; ajusta-les a la xarxa del teu institut si cal.
+- Si els IDs originals ja existeixen, tria IDs diferents a la restauració i actualitza les referències corresponents a l'aplicació.
+
+### Restauració per terminal
+
+Per restaurar el contenidor LXC amb el número `901` i emmagatzemar-lo a `local-lvm`:
+
+```bash
+pct restore 901 /var/lib/vz/dump/vzdump-lxc-901-2026_11_19-10_13_28.tar.zst \
+    --storage local-lvm
+```
+
+Per restaurar la VM amb el número `108` i emmagatzemar-la a `local-lvm`:
+
+```bash
+qmrestore /var/lib/vz/dump/vzdump-qemu-108-2026_11_19-10_15_08.vma.zst 108 \
+    --storage local-lvm
+```
+
+Engega les màquines des de la interfície de Proxmox i verifica les configuracions abans d'utilitzar-les:
+
+```bash
+pct start 901
+qm start 108
+```
 
 ---
 
@@ -147,14 +205,14 @@ pct push 901 /ruta/al/teu/index.html /var/www/html/index.html
 ## 📖 Manual d'Ús
 
 1. **Accés:** Obre un navegador web a `http://<IP_DEL_CONTENIDOR_901>` (ex. `http://192.168.2.155`).
-2. **Connexió Proxmox:** 
-   - A la barra superior, posa la IP de l'aplicació web mateix com a Host (`http://192.168.2.155:80`), el *Token ID* i el *Secret*. 
+2. **Connexió Proxmox:**
+   - A la barra superior, posa la IP de l'aplicació web mateix com a Host (`http://192.168.2.155:80`), el *Token ID* i el *Secret*.
    - Prem **Sincronitzar** per carregar les teves plantilles.
 3. **Configuració del Laboratori:**
    - Selecciona quantes instàncies (CT/VM) rebrà cada alumne i defineix-ne els recursos (vCPU, RAM, HDD).
 4. **Automatització MikroTik:**
    - Introdueix les dades d'accés del teu CHR (IP ether1, admin, password) i prem **🚀 Sincronitzar MikroTik** per preparar la xarxa automàticament per a tothom.
-5. **Desplegament Massiu:** 
+5. **Desplegament Massiu:**
    - Prem **+ Desplegar Proxmox**. El sistema crearà els *Resource Pools*, usuaris i els *Linked Clones* ubicats en la seva VLAN corresponent.
 
 ---
