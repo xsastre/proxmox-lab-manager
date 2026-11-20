@@ -1,100 +1,1475 @@
-<!-- frontend/index.html -->
 <!DOCTYPE html>
 <html lang="ca">
 <head>
-    <meta charset="UTF-8">
-    <title>Lab Manager - Integració Proxmox i MikroTik</title>
-    <style>
-        body { font-family: system-ui; padding: 20px; background: #f4f5f7; }
-        .card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        input, button { padding: 8px; margin: 5px 0; }
-        button { background: #0055ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #0044cc; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proxmox Lab Manager · API REST Directa</title>
+<style>
+  :root {
+    --bg: #0b0f19; --card: #111827; --card2: #0f172a; --border: #1e293b;
+    --text: #f1f5f9; --muted: #94a3b8; --orange: #f97316; --green: #10b981;
+    --blue: #3b82f6; --indigo: #6366f1; --red: #ef4444; --cyan: #06b6d4; --yellow: #eab308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 18px; font-size: 13px; }
+  .container { max-width: 1580px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 38px; height: 38px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #fff; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .badge-orange { background: rgba(249,115,22,.15); color: #fb923c; border: 1px solid rgba(249,115,22,.3); }
+  .badge-green { background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
+  .badge-red { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+  .badge-blue { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+  .badge-cyan { background: rgba(6,182,212,.15); color: #22d3ee; border: 1px solid rgba(6,182,212,.3); }
+  .badge-indigo { background: rgba(99,102,241,.18); color: #a5b4fc; border: 1px solid rgba(99,102,241,.38); }
+  .btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 600; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: .15s; color: #fff; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-green { background: var(--green); }
+  .btn-orange { background: var(--orange); }
+  .btn-cyan { background: #0891b2; }
+  .btn-red { background: rgba(239,68,68,.2); color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+  .btn-dark { background: #1e293b; color: var(--text); border: 1px solid #334155; }
+  .btn-outline-indigo { background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,.38); justify-content: center; }
+  .grid-conn { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1.6fr auto; gap: 12px; align-items: end; margin-top: 12px; }
+  .grid-mt { display: grid; grid-template-columns: 1.4fr 1fr 1.2fr .8fr .8fr auto auto; gap: 10px; align-items: end; margin-top: 12px; }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+  input, select { width: 100%; background: var(--card2); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 8px; font-size: 12px; outline: none; }
+  input:focus, select:focus { border-color: var(--orange); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kpi { display: flex; justify-content: space-between; align-items: center; }
+  .kpi-val { font-size: 26px; font-weight: 800; margin: 4px 0; }
+  .kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; }
+  .mass-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .mass-controls { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .specs-wrapper { margin-top: 14px; background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  .specs-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  .specs-table th { text-align: left; font-size: 11px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .specs-table td { padding: 6px 8px; border-bottom: 1px solid rgba(30,41,59,.5); vertical-align: middle; }
+  .specs-table tr:last-child td { border-bottom: none; }
+  .progress-bar { width: 100%; height: 6px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 10px; display: none; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--orange), var(--green)); width: 0%; transition: width .25s; }
+  .main-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+  .tabs { display: flex; gap: 6px; background: var(--card2); padding: 4px; border-radius: 9px; border: 1px solid var(--border); flex-wrap: wrap; }
+  .tab { padding: 6px 11px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--muted); border: none; background: transparent; }
+  .tab.active { background: #1e293b; color: #fff; }
+  .tab.active-orange { background: rgba(249,115,22,.18); color: #fb923c; border: 1px solid rgba(249,115,22,.35); }
+  .filters { display: grid; grid-template-columns: 1fr 140px 140px; gap: 10px; margin: 12px 0; }
+  .students-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
+  .student-card { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .inst-box { background: #090d16; border: 1px dashed #1e293b; border-radius: 8px; padding: 8px; min-height: 54px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+  .inst-row { display: flex; justify-content: space-between; align-items: center; background: #111827; padding: 5px 8px; border-radius: 6px; font-size: 11px; }
+  .log-list { display: flex; flex-direction: column; gap: 8px; max-height: 620px; overflow-y: auto; margin-top: 10px; }
+  .log-item { background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font-family: monospace; font-size: 11px; }
+  .log-ok { border-left: 3px solid var(--green); }
+  .log-err { border-left: 3px solid var(--red); background: rgba(239,68,68,.07); }
+  pre.bash-box { background: #090d16; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; color: #cbd5e1; max-height: 580px; overflow: auto; white-space: pre-wrap; }
+  table.cluster-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.cluster-tbl th, table.cluster-tbl td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  table.cluster-tbl th { color: var(--muted); font-size: 11px; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; place-items: center; z-index: 50; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 540px; max-width: 95vw; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+  @media (max-width: 1200px) { .main-grid, .kpis, .grid-conn, .grid-mt, .students-grid { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
+<div class="container">
+  <!-- HEADER -->
+  <div class="card header">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <strong style="font-size:16px;">Proxmox Lab Manager</strong>
+          <span class="badge badge-orange">API REST Directa</span>
+          <span id="activePrefixBadge" class="badge badge-indigo" style="cursor:pointer;" onclick="openParamsModal()" title="Fes clic per canviar el prefix a Paràmetres Lab">🏷️ Sense prefix</span>
+        </div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px;">Gestió en temps real de Pools, VLANs (<code id="lblBridgeTop">vmbr1</code>), VMs (<code>qemu</code>), Contenidors (<code>lxc</code>) i Router MikroTik</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span id="connStatus" class="badge badge-red">● PVE Desconnectat</span>
+      <span id="mtStatusBadge" class="badge badge-red">● MikroTik Pendent</span>
+      <button class="btn btn-green" onclick="connectAndSync()">🔄 Connectar i Sincronitzar</button>
+      <button class="btn btn-dark" onclick="openParamsModal()">⚙️ Paràmetres Lab</button>
+    </div>
+  </div>
 
-    <h1>Gestor de Pràctiques i Laboratoris</h1>
+  <!-- CONNEXIÓ PROXMOX -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>
+        <strong style="color:#fb923c;">🔑 Connexió Directa API REST de Proxmox VE (<code>/api2/json</code>)</strong>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px;">Les credencials i la definició de màquines es desen localment al navegador (<code>localStorage</code>).</div>
+      </div>
+      <span id="tplCounterBadge" class="badge badge-blue">Plantilles detectades: 0 VM · 0 CT</span>
+    </div>
+    <div class="grid-conn">
+      <div>
+        <label>Host / IP Proxmox (:8006)</label>
+        <input type="text" id="pveHost" placeholder="http://192.168.2.155:80">
+      </div>
+      <div>
+        <label>Node Proxmox <span style="color:var(--green);float:right;">Auto-detectat</span></label>
+        <input type="text" id="pveNode" placeholder="ginjoler">
+      </div>
+      <div>
+        <label>Token ID</label>
+        <input type="text" id="tokenId" placeholder="root@pam!lab-manager">
+      </div>
+      <div>
+        <label>Token Secret (UUID)</label>
+        <div style="display:flex;gap:4px;">
+          <input type="password" id="tokenSecret" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          <button class="btn btn-dark" type="button" onclick="toggleSecret('tokenSecret')" style="padding:0 10px;">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-orange" onclick="connectAndSync()">🔄 Sincronitzar</button>
+    </div>
+  </div>
 
-    <div class="card">
-        <h2>1. Nova Pràctica</h2>
-        <input type="text" id="p-nom" placeholder="Nom del Lab"><br>
-        <input type="text" id="p-curs" placeholder="Curs (ex. 2026-2027)"><br>
-        <input type="text" id="p-modul" placeholder="Mòdul (ex. Sistemes)"><br>
-        <input type="number" id="p-alumnes" placeholder="Nombre d'alumnes"><br>
-        <input type="number" id="p-vms" placeholder="VMs per alumne"><br>
-        <input type="number" id="p-plantilla" placeholder="ID Plantilla Proxmox (ex. 9000)"><br>
-        <textarea id="p-desc" placeholder="Descripció i objectiu del Lab" rows="3" style="width: 100%;"></textarea><br>
-        <button onclick="guardarPractica()">Desar Pràctica (SQLite)</button>
+  <!-- CONNEXIÓ I AUTOMATITZACIÓ MIKROTIK ROUTEROS v7 -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>
+        <strong style="color:#22d3ee;">🌐 Automatització Router MikroTik CHR (RouterOS v7 REST API · <code>/rest/</code>)</strong>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px;">Sincronització <strong>no destructiva</strong>: conserva les VLANs, DHCP i regles d'aïllament ja existents (<code>10.0.0.0/8</code>) i afegeix només les noves de la pràctica.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span id="mtInfoSummary" class="badge badge-cyan">VLANs existents: —</span>
+        <button class="btn btn-red" style="padding:5px 10px;font-size:11px;" onclick="cleanPracticeOnMikrotik()">🧹 Eliminar VLANs d'aquesta pràctica</button>
+      </div>
+    </div>
+    <div class="grid-mt">
+      <div>
+        <label>URL / IP WAN MikroTik (vmbr0)</label>
+        <input type="text" id="mtHost" placeholder="http://192.168.2.135" oninput="saveConfig()">
+      </div>
+      <div>
+        <label>Usuari RouterOS</label>
+        <input type="text" id="mtUser" value="admin" oninput="saveConfig()">
+      </div>
+      <div>
+        <label>Contrasenya</label>
+        <div style="display:flex;gap:4px;">
+          <input type="password" id="mtPass" placeholder="(en blanc si és per defecte)" oninput="saveConfig()">
+          <button class="btn btn-dark" type="button" onclick="toggleSecret('mtPass')" style="padding:0 10px;">👁</button>
+        </div>
+      </div>
+      <div>
+        <label>WAN (vmbr0)</label>
+        <input type="text" id="mtWan" value="ether1" oninput="saveConfig();renderScripts();">
+      </div>
+      <div>
+        <label>LAN Trunk (vmbr1)</label>
+        <input type="text" id="mtLan" value="ether2" oninput="saveConfig();renderScripts();">
+      </div>
+      <button class="btn btn-dark" onclick="checkMikrotik()">🔍 Comprovar</button>
+      <button class="btn btn-cyan" id="btnSyncMt" onclick="syncMikrotikRest()">🚀 Sincronitzar MikroTik</button>
+    </div>
+  </div>
+
+  <!-- KPIS -->
+  <div class="kpis">
+    <div class="card kpi">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;">ALUMNES / POOLS</div>
+        <div class="kpi-val" id="kpiPools">0</div>
+        <div style="font-size:11px;color:var(--muted);">Pools <code id="kpiPoolPattern">Lab-AlumneXX</code></div>
+      </div>
+      <div class="kpi-icon" style="background:rgba(99,102,241,.15);color:#818cf8;">👥</div>
+    </div>
+    <div class="card kpi">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;">INSTÀNCIES DEL LAB</div>
+        <div class="kpi-val" id="kpiLabVms">0</div>
+        <div style="font-size:11px;color:var(--muted);" id="kpiLabSub">0 en marxa · 0 aturades</div>
+      </div>
+      <div class="kpi-icon" style="background:rgba(16,185,129,.15);color:#34d399;">🖥️</div>
+    </div>
+    <div class="card kpi">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;">ALTRES POOLS / INFRA</div>
+        <div class="kpi-val" id="kpiInfra">0</div>
+        <div style="font-size:11px;color:var(--muted);">MikroTik, plantilles i altres labs</div>
+      </div>
+      <div class="kpi-icon" style="background:rgba(234,179,8,.15);color:#facc15;">🗄️</div>
+    </div>
+    <div class="card kpi">
+      <div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;">XARXA I NODE ACTIU</div>
+        <div class="kpi-val" id="kpiNode" style="font-size:22px;">—</div>
+        <div style="font-size:11px;color:var(--muted);" id="kpiNetSub">Bridge vmbr1 · VLAN 101–120</div>
+      </div>
+      <div class="kpi-icon" style="background:rgba(6,182,212,.15);color:#22d3ee;">📡</div>
+    </div>
+  </div>
+
+  <!-- CONFIGURACIÓ DE MÀQUINES PER ALUMNE I DESPLEGAMENT MASSIU -->
+  <div class="card">
+    <div class="mass-header">
+      <div>
+        <strong style="font-size:14px;">⚡ Definició d'Entorn per Alumne i Desplegament Massiu</strong>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px;">Indica quants alumnes i quantes màquines per alumne vols crear; configura sota la plantilla (VM o CT), vCPUs, RAM i HDD de cada màquina.</div>
+      </div>
+      <div class="mass-controls">
+        <div style="width:115px;">
+          <label>Alumnes (1..50)</label>
+          <input type="number" id="massStudents" value="20" min="1" max="50" oninput="updateSummaryAndScripts()">
+        </div>
+        <div style="width:130px;">
+          <label>Màquines / alumne</label>
+          <input type="number" id="massPerStudent" value="2" min="1" max="10" oninput="onMachineCountChange()">
+        </div>
+        <button class="btn btn-green" id="btnDeployAll" onclick="deployAll()">+ Desplegar Proxmox</button>
+        <button class="btn btn-red" id="btnDeleteAll" onclick="deleteAll()">🗑️ Eliminar Tot PVE</button>
+      </div>
     </div>
 
-    <div class="card">
-        <h2>2. Sincronització MikroTik CHR</h2>
-        <input type="text" id="mt-ip" placeholder="IP MikroTik (ex. http://192.168.2.135)">
-        <input type="text" id="mt-user" placeholder="Usuari (admin)">
-        <input type="password" id="mt-pass" placeholder="Contrasenya">
-        <button onclick="sincronitzarMikroTik()">🚀 Configurar VLANs i DHCP al MikroTik</button>
-        <p id="mt-status"></p>
+    <!-- TAULA GRANULAR DE MÀQUINES PER ALUMNE -->
+    <div class="specs-wrapper">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+        <strong style="font-size:12px;color:#fb923c;">🛠️ Màquines que es crearan a cada alumne (<code id="lblHostPattern">alXX-&lt;sufix&gt;</code>):</strong>
+        <span id="totalResourcesBadge" class="badge badge-cyan">Total aula: 40 instàncies · 40 vCPU · 20.0 GB RAM · 240 GB HDD</span>
+      </div>
+      <table class="specs-table">
+        <thead>
+          <tr>
+            <th style="width:65px;">Màquina</th>
+            <th style="width:130px;">Sufix / Rol</th>
+            <th>Imatge o Plantilla (VM QEMU / Contenidor LXC)</th>
+            <th style="width:95px;">vCPUs</th>
+            <th style="width:115px;">RAM (MB)</th>
+            <th style="width:105px;">HDD (GB)</th>
+          </tr>
+        </thead>
+        <tbody id="machineSpecsBody"></tbody>
+      </table>
     </div>
 
-    <script>
-        // Desar a la base de dades local a través d'app.py
-        async function guardarPractica() {
-            const data = {
-                nom: document.getElementById('p-nom').value,
-                curs: document.getElementById('p-curs').value,
-                modul: document.getElementById('p-modul').value,
-                num_alumnes: parseInt(document.getElementById('p-alumnes').value),
-                vms_per_alumne: parseInt(document.getElementById('p-vms').value),
-                plantilla_id: parseInt(document.getElementById('p-plantilla').value),
-                descripcio: document.getElementById('p-desc').value
-            };
+    <div class="progress-bar" id="deployProgressWrap">
+      <div class="progress-fill" id="deployProgressFill"></div>
+    </div>
+    <div id="deployStatusText" style="font-size:11px;color:var(--muted);margin-top:6px;display:none;"></div>
+  </div>
 
-            const response = await fetch('/api/local/practiques', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const res = await response.json();
-            if (res.success) alert("Pràctica guardada correctament!");
-        }
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+    <!-- LEFT: ALUMNES I POOLS / CLUSTER -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div class="tabs">
+          <button class="tab active" id="tabStudentsBtn" onclick="switchLeftTab('students')">Alumnes i Pools (<span id="cntPoolsTab">0</span>)</button>
+          <button class="tab" id="tabClusterBtn" onclick="switchLeftTab('cluster')">Totes les VMs/LXC del Clúster (<span id="cntClusterTab">0</span>)</button>
+        </div>
+        <button class="btn btn-orange" onclick="createSingleStudent()">👤 + Nou Alumne</button>
+      </div>
 
-        // Crida REST al MikroTik passant pel proxy Nginx
-        async function sincronitzarMikroTik() {
-            const numAlumnes = parseInt(document.getElementById('p-alumnes').value);
-            const urlMt = document.getElementById('mt-ip').value;
-            const user = document.getElementById('mt-user').value;
-            const pass = document.getElementById('mt-pass').value;
-            const auth = 'Basic ' + btoa(user + ':' + pass);
+      <div class="filters">
+        <input type="text" id="searchFilter" placeholder="🔍 Cerca per alumne, VMID, nom, VLAN (ex. 101) o pool..." oninput="renderMain()">
+        <select id="typeFilter" onchange="renderMain()">
+          <option value="all">Tipus: Tots</option>
+          <option value="qemu">Tipus: VM (qemu)</option>
+          <option value="lxc">Tipus: LXC</option>
+        </select>
+        <select id="statusFilter" onchange="renderMain()">
+          <option value="all">Estat: Tots</option>
+          <option value="running">Estat: En marxa</option>
+          <option value="stopped">Estat: Aturat</option>
+        </select>
+      </div>
 
-            document.getElementById('mt-status').innerText = "Configurant MikroTik...";
+      <div id="viewStudents" class="students-grid"></div>
+      <div id="viewCluster" style="display:none;max-height:620px;overflow:auto;">
+        <table class="cluster-tbl">
+          <thead><tr><th>VMID</th><th>Nom</th><th>Tipus</th><th>Pool</th><th>Estat</th><th>Accions</th></tr></thead>
+          <tbody id="clusterTableBody"></tbody>
+        </table>
+      </div>
+    </div>
 
-            for (let i = 1; i <= numAlumnes; i++) {
-                const vlanId = 100 + i;
-                const vlanName = `VLAN-${vlanId}-Alumne${i}`;
-                
-                try {
-                    // Creació de la VLAN
-                    await fetch('/mikrotik-rest/interface/vlan', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Mikrotik-Url': urlMt,
-                            'Authorization': auth
-                        },
-                        body: JSON.stringify({
-                            name: vlanName,
-                            "vlan-id": vlanId.toString(),
-                            interface: "ether2" // Assumint ether2 com a trunk (vmbr1)
-                        })
-                    });
-                    // Aquí s'afegirien crides similars per IP, DHCP Pool i DHCP Server
-                } catch (e) {
-                    console.error(`Error a la VLAN ${vlanId}`, e);
-                }
-            }
-            document.getElementById('mt-status').innerText = "Sincronització REST finalitzada!";
-        }
-    </script>
+    <!-- RIGHT: REGISTRE API REST / SCRIPT BASH / SCRIPT MIKROTIK -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div class="tabs">
+          <button class="tab active-orange" id="tabLogBtn" onclick="switchRightTab('log')">● Registre API (<span id="cntLogs">0</span>)</button>
+          <button class="tab" id="tabBashBtn" onclick="switchRightTab('bash')">Bash Proxmox</button>
+          <button class="tab" id="tabRscBtn" onclick="switchRightTab('rsc')">MikroTik (.rsc)</button>
+        </div>
+        <button class="btn btn-dark" style="padding:4px 10px;font-size:11px;" onclick="clearLogs()">Netejar</button>
+      </div>
+      <div style="color:var(--muted);font-size:11px;margin-top:8px;" id="rightSub">Peticions HTTP reals enviades a Proxmox (<code>/api2/json</code>) i MikroTik (<code>/rest</code>)</div>
+
+      <div id="viewLog" class="log-list"></div>
+      <div id="viewBash" style="display:none;margin-top:10px;">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+          <button class="btn btn-dark" style="padding:4px 10px;font-size:11px;" onclick="copyText('bashOutput')">📋 Copiar Bash</button>
+        </div>
+        <pre class="bash-box" id="bashOutput"></pre>
+      </div>
+      <div id="viewRsc" style="display:none;margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--muted);">Script idempotent RouterOS v7 (respecta la config existent)</span>
+          <button class="btn btn-dark" style="padding:4px 10px;font-size:11px;" onclick="copyText('rscOutput')">📋 Copiar .rsc</button>
+        </div>
+        <pre class="bash-box" id="rscOutput"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PARÀMETRES LAB -->
+<div class="modal-bg" id="paramsModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <strong style="font-size:15px;">⚙️ Paràmetres Generals del Laboratori</strong>
+      <button class="btn btn-dark" style="padding:4px 8px;" onclick="closeParamsModal()">✕</button>
+    </div>
+    <div class="modal-grid">
+      <div style="grid-column: 1 / -1; background: rgba(249,115,22,.08); border: 1px solid rgba(249,115,22,.3); border-radius: 8px; padding: 10px;">
+        <label style="color:#fb923c;">Prefix de la Pràctica (indicatiu de tots els elements creats)</label>
+        <input type="text" id="cfgPrefix" maxlength="16" placeholder="Ex: M07, DNS, XARXES1 (en blanc = sense prefix)" oninput="updatePrefixPreview()">
+        <div id="prefixLivePreview" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;"></div>
+      </div>
+      <div><label>Bridge Intern VLAN-aware</label><input type="text" id="cfgBridge" value="vmbr1"></div>
+      <div><label>Storage Destí (LXC / Clons)</label><input type="text" id="cfgStorage" value="local-lvm"></div>
+      <div><label>Prefix VLAN Base (ex. 100 -> 101..)</label><input type="number" id="cfgVlanBase" value="100"></div>
+      <div><label>Contrasenya Alumnes</label><input type="text" id="cfgPass" value="LabAlumne2026!"></div>
+      <div><label>Mode de Clonació VM</label>
+        <select id="cfgCloneMode">
+          <option value="0">Linked Clone (ràpid, recomanat en LVM-thin)</option>
+          <option value="1">Full Clone (còpia completa independent)</option>
+        </select>
+      </div>
+      <div><label>Esquema d'IDs (VMID/CTID)</label>
+        <select id="cfgIdScheme">
+          <option value="classic">Clàssic (VLAN * 10 + M -> 1011..1204)</option>
+          <option value="30000" selected>Bloc 30000+ (30000 + Alumne*10 + M)</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn-dark" onclick="closeParamsModal()">Cancel·lar</button>
+      <button class="btn btn-green" onclick="saveParams()">💾 Desar Paràmetres</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  pools: [],
+  resources: [],
+  vmTemplates: [],
+  ctTemplates: [],
+  ctImages: [],
+  logs: [],
+  machines: [
+    { suffix: 'vm01', source: 'vm-tpl:9000', cores: 1, memory: 1024, diskGb: 10 },
+    { suffix: 'ct01', source: 'ct-img:local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst', cores: 1, memory: 512, diskGb: 4 }
+  ],
+  params: {
+    prefix: '',
+    bridge: 'vmbr1',
+    storage: 'local-lvm',
+    vlanBase: 100,
+    pass: 'LabAlumne2026!',
+    cloneMode: '0',
+    idScheme: '30000'
+  }
+};
+
+// Normalitza el prefix de pràctica per a Pools, Usuaris (@pve), Hostnames i MikroTik
+function normalizePrefix(rawStr) {
+  const clean = String(rawStr || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const lower = clean.toLowerCase();
+  return {
+    raw: clean,
+    poolPrefix: clean ? `${clean}-` : '',
+    lowerPrefix: lower ? `${lower}-` : ''
+  };
+}
+
+function getPrefixInfo() {
+  return normalizePrefix(state.params.prefix);
+}
+
+function getPoolName(numStr) {
+  return `${getPrefixInfo().poolPrefix}Lab-Alumne${numStr}`;
+}
+
+function getUserName(numStr) {
+  return `${getPrefixInfo().lowerPrefix}alumne${numStr}@pve`;
+}
+
+function getHostName(numStr, cleanSuffix) {
+  return `${getPrefixInfo().lowerPrefix}al${numStr}-${cleanSuffix}`;
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isLabPoolForCurrentPrefix(poolid) {
+  const { poolPrefix } = getPrefixInfo();
+  const rx = new RegExp(`^${escapeRegExp(poolPrefix)}Lab-Alumne(\\d+)$`, 'i');
+  return rx.test(poolid || '');
+}
+
+function extractStudentNumFromPool(poolid) {
+  const { poolPrefix } = getPrefixInfo();
+  const rx = new RegExp(`^${escapeRegExp(poolPrefix)}Lab-Alumne(\\d+)$`, 'i');
+  const m = String(poolid || '').match(rx);
+  return m ? m[1] : '';
+}
+
+function updatePrefixUiIndicators() {
+  const p = getPrefixInfo();
+  const badge = document.getElementById('activePrefixBadge');
+  if (p.raw) {
+    badge.textContent = `🏷️ Prefix: ${p.raw}`;
+    badge.className = 'badge badge-orange';
+  } else {
+    badge.textContent = '🏷️ Sense prefix';
+    badge.className = 'badge badge-indigo';
+  }
+  document.getElementById('kpiPoolPattern').textContent = `${p.poolPrefix}Lab-AlumneXX`;
+  document.getElementById('lblHostPattern').textContent = `${p.lowerPrefix}alXX-<sufix>`;
+}
+
+function updatePrefixPreview() {
+  const p = normalizePrefix(document.getElementById('cfgPrefix').value);
+  const sfx = (state.machines[0] && state.machines[0].suffix) || 'vm01';
+  document.getElementById('prefixLivePreview').innerHTML = `
+    Pool: <code style="color:#fb923c;">${p.poolPrefix}Lab-Alumne01</code> ·
+    Usuari: <code style="color:#34d399;">${p.lowerPrefix}alumne01@pve</code><br>
+    Host: <code style="color:#60a5fa;">${p.lowerPrefix}al01-${sfx}</code> ·
+    VLAN MikroTik: <code style="color:#22d3ee;">${p.lowerPrefix}vlan-alumne-1</code>
+  `;
+}
+
+function loadConfig() {
+  const saved = JSON.parse(localStorage.getItem('pve_lab_classic_v3') || localStorage.getItem('pve_lab_classic_v2') || '{}');
+  document.getElementById('pveHost').value = saved.host || (window.location.origin + (window.location.port ? '' : ':80'));
+  document.getElementById('pveNode').value = saved.node || '';
+  document.getElementById('tokenId').value = saved.tokenId || 'root@pam!lab-manager';
+  document.getElementById('tokenSecret').value = saved.tokenSecret || '';
+
+  if (saved.mt) {
+    document.getElementById('mtHost').value = saved.mt.host || '';
+    document.getElementById('mtUser').value = saved.mt.user || 'admin';
+    document.getElementById('mtPass').value = saved.mt.pass || '';
+    document.getElementById('mtWan').value = saved.mt.wan || 'ether1';
+    document.getElementById('mtLan').value = saved.mt.lan || 'ether2';
+  }
+
+  if (saved.params) state.params = { ...state.params, ...saved.params };
+  if (saved.numStudents) document.getElementById('massStudents').value = saved.numStudents;
+  if (Array.isArray(saved.machines) && saved.machines.length > 0) {
+    state.machines = saved.machines;
+    document.getElementById('massPerStudent').value = state.machines.length;
+  }
+  document.getElementById('lblBridgeTop').textContent = state.params.bridge;
+  updatePrefixUiIndicators();
+  renderMachineSpecsTable();
+}
+
+function saveConfig() {
+  localStorage.setItem('pve_lab_classic_v3', JSON.stringify({
+    host: document.getElementById('pveHost').value.trim(),
+    node: document.getElementById('pveNode').value.trim(),
+    tokenId: document.getElementById('tokenId').value.trim(),
+    tokenSecret: document.getElementById('tokenSecret').value.trim(),
+    mt: {
+      host: document.getElementById('mtHost').value.trim(),
+      user: document.getElementById('mtUser').value.trim(),
+      pass: document.getElementById('mtPass').value,
+      wan: document.getElementById('mtWan').value.trim(),
+      lan: document.getElementById('mtLan').value.trim()
+    },
+    numStudents: Number(document.getElementById('massStudents').value) || 20,
+    machines: state.machines,
+    params: state.params
+  }));
+}
+
+function toggleSecret(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// Helper coherent per calcular subxarxa, gateway i noms MikroTik amb prefix
+function getStudentNetworkInfo(studentNum) {
+  const base = Number(state.params.vlanBase);
+  const vlan = base + studentNum;
+  const secondOctet = (base === 100) ? studentNum : (vlan <= 254 ? vlan : studentNum);
+  const idxLabel = (base === 100) ? String(studentNum) : String(vlan);
+  const { lowerPrefix, raw } = getPrefixInfo();
+  const commentTag = raw ? `[${raw}] ` : '';
+  return {
+    vlan,
+    idxLabel,
+    commentTag,
+    subnet: `10.${secondOctet}.0.0/24`,
+    gw: `10.${secondOctet}.0.1`,
+    gwMask: `10.${secondOctet}.0.1/24`,
+    poolRange: `10.${secondOctet}.0.50-10.${secondOctet}.0.200`,
+    vlanName: `${lowerPrefix}vlan-alumne-${idxLabel}`,
+    poolName: `${lowerPrefix}pool-alumne-${idxLabel}`,
+    dhcpName: `${lowerPrefix}dhcp-alumne-${idxLabel}`
+  };
+}
+
+function getAvailableTemplateOptions() {
+  const opts = [];
+  state.vmTemplates.forEach(t => {
+    opts.push({ group: 'Plantilles VM (QEMU)', val: `vm-tpl:${t.vmid}`, label: `[VM] ${t.vmid} - ${t.name || 'Plantilla VM'}` });
+  });
+  state.ctTemplates.forEach(t => {
+    opts.push({ group: 'Plantilles Contenidor (LXC)', val: `ct-tpl:${t.vmid}`, label: `[CT Template] ${t.vmid} - ${t.name || 'Plantilla LXC'}` });
+  });
+  state.ctImages.forEach(img => {
+    const shortName = img.volid.split('/').pop();
+    opts.push({ group: 'Imatges Contenidor (vztmpl)', val: `ct-img:${img.volid}`, label: `[CT Imatge] ${shortName} (${img.volid})` });
+  });
+  return opts;
+}
+
+function onMachineCountChange() {
+  let count = parseInt(document.getElementById('massPerStudent').value, 10);
+  if (isNaN(count) || count < 1) count = 1;
+  if (count > 10) count = 10;
+
+  const avail = getAvailableTemplateOptions();
+  const defaultSrc = avail.length > 0 ? avail[0].val : 'vm-tpl:9000';
+
+  while (state.machines.length < count) {
+    const idx = state.machines.length + 1;
+    state.machines.push({ suffix: `maq0${idx}`, source: defaultSrc, cores: 1, memory: 512, diskGb: 8 });
+  }
+  if (state.machines.length > count) state.machines = state.machines.slice(0, count);
+  saveConfig();
+  renderMachineSpecsTable();
+}
+
+function buildSelectHtml(idx, currentVal) {
+  const avail = getAvailableTemplateOptions();
+  const groups = { 'Plantilles VM (QEMU)': [], 'Plantilles Contenidor (LXC)': [], 'Imatges Contenidor (vztmpl)': [] };
+  avail.forEach(o => groups[o.group].push(o));
+
+  let found = false;
+  let html = `<select onchange="updateMachineField(${idx}, 'source', this.value)">`;
+  Object.entries(groups).forEach(([gName, items]) => {
+    if (items.length > 0) {
+      html += `<optgroup label="${gName}">`;
+      items.forEach(it => {
+        const sel = it.val === currentVal ? 'selected' : '';
+        if (sel) found = true;
+        html += `<option value="${it.val}" ${sel}>${it.label}</option>`;
+      });
+      html += `</optgroup>`;
+    }
+  });
+  if (!found && currentVal) {
+    const cleanLabel = currentVal.replace('vm-tpl:', '[VM ID] ').replace('ct-tpl:', '[CT ID] ').replace('ct-img:', '[CT Imatge] ');
+    html += `<optgroup label="Configurat / Manual"><option value="${currentVal}" selected>${cleanLabel}</option></optgroup>`;
+  }
+  html += `<option value="__MANUAL__">✏️ Introduir ID VM o ruta vztmpl manualment...</option></select>`;
+  return html;
+}
+
+function updateMachineField(idx, field, val) {
+  if (field === 'source' && val === '__MANUAL__') {
+    const custom = prompt('Introdueix el VMID de la plantilla (ex: 9000) o la ruta de la imatge LXC (ex: local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst):');
+    if (custom && custom.trim()) {
+      const c = custom.trim();
+      if (/^\d+$/.test(c)) {
+        const isCt = confirm('És una plantilla de Contenidor LXC? (Acceptar = CT Template, Cancel·lar = VM QEMU)');
+        state.machines[idx].source = `${isCt ? 'ct-tpl' : 'vm-tpl'}:${c}`;
+      } else {
+        state.machines[idx].source = c.startsWith('ct-img:') ? c : `ct-img:${c}`;
+      }
+    }
+    renderMachineSpecsTable();
+    saveConfig();
+    return;
+  }
+  state.machines[idx][field] = (field === 'cores' || field === 'memory' || field === 'diskGb') ? Number(val) : val.trim();
+  saveConfig();
+  updateSummaryAndScripts();
+}
+
+function renderMachineSpecsTable() {
+  const tbody = document.getElementById('machineSpecsBody');
+  tbody.innerHTML = state.machines.map((m, idx) => `
+    <tr>
+      <td><span class="badge badge-orange">Màq #${idx + 1}</span></td>
+      <td><input type="text" value="${m.suffix}" oninput="updateMachineField(${idx}, 'suffix', this.value)" placeholder="ex. router"></td>
+      <td>${buildSelectHtml(idx, m.source)}</td>
+      <td><input type="number" min="1" max="32" value="${m.cores}" oninput="updateMachineField(${idx}, 'cores', this.value)"></td>
+      <td><input type="number" min="128" max="65536" step="128" value="${m.memory}" oninput="updateMachineField(${idx}, 'memory', this.value)"></td>
+      <td><input type="number" min="1" max="1000" value="${m.diskGb}" oninput="updateMachineField(${idx}, 'diskGb', this.value)"></td>
+    </tr>
+  `).join('');
+  updateSummaryAndScripts();
+}
+
+function updateSummaryAndScripts() {
+  const numStudents = Number(document.getElementById('massStudents').value) || 0;
+  const totalInst = numStudents * state.machines.length;
+  const sumCores = state.machines.reduce((acc, m) => acc + (Number(m.cores) || 0), 0) * numStudents;
+  const sumRamMb = state.machines.reduce((acc, m) => acc + (Number(m.memory) || 0), 0) * numStudents;
+  const sumDiskGb = state.machines.reduce((acc, m) => acc + (Number(m.diskGb) || 0), 0) * numStudents;
+
+  document.getElementById('totalResourcesBadge').textContent =
+    `Total aula: ${totalInst} instàncies · ${sumCores} vCPU · ${(sumRamMb / 1024).toFixed(1)} GB RAM · ${sumDiskGb} GB HDD`;
+  saveConfig();
+  renderScripts();
+}
+
+function addLog(method, status, path, desc, ok = true, source = 'PVE') {
+  const now = new Date().toTimeString().split(' ')[0];
+  state.logs.unshift({ method, status, path, desc, ok, time: now, source });
+  if (state.logs.length > 250) state.logs.pop();
+  document.getElementById('cntLogs').textContent = state.logs.length;
+  const box = document.getElementById('viewLog');
+  box.innerHTML = state.logs.map(l => `
+    <div class="log-item ${l.ok ? 'log-ok' : 'log-err'}">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <strong style="color:${l.ok ? '#34d399' : '#f87171'}">[${l.source}] ${l.method} · HTTP ${l.status}</strong>
+        <span style="color:var(--muted)">${l.time}</span>
+      </div>
+      <div style="color:${l.source === 'MT' ? '#22d3ee' : '#93c5fd'}">${l.path}</div>
+      <div style="color:var(--muted);margin-top:2px;">${l.desc}</div>
+    </div>
+  `).join('');
+}
+
+function clearLogs() {
+  state.logs = [];
+  document.getElementById('cntLogs').textContent = '0';
+  document.getElementById('viewLog').innerHTML = '';
+}
+
+// ==================== PROXMOX API ====================
+async function pveFetch(method, endpoint, bodyObj = null, desc = '', silent = false) {
+  saveConfig();
+  let base = document.getElementById('pveHost').value.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(base)) base = 'http://' + base;
+  if (!/:\d+$/.test(base)) base += ':8006';
+  const url = `${base}/api2/json${endpoint}`;
+  const tid = document.getElementById('tokenId').value.trim();
+  const tsec = document.getElementById('tokenSecret').value.trim();
+
+  const headers = { 'Authorization': `PVEAPIToken=${tid}=${tsec}` };
+  let body = null;
+  if (bodyObj) {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    body = new URLSearchParams(bodyObj).toString();
+  }
+
+  try {
+    const resp = await fetch(url, { method, headers, body });
+    const text = await resp.text();
+    let json = {};
+    try { json = JSON.parse(text); } catch {}
+    if (!resp.ok) {
+      const errMsg = json.errors ? JSON.stringify(json.errors) : (resp.statusText || 'ERROR');
+      if (!silent) addLog(method, resp.status, endpoint, `${desc} -> ${errMsg}`, false, 'PVE');
+      throw new Error(`HTTP ${resp.status}: ${errMsg}`);
+    }
+    if (!silent) addLog(method, resp.status, endpoint, desc || 'OK', true, 'PVE');
+    return json.data;
+  } catch (e) {
+    if (!silent && !e.message.startsWith('HTTP ')) {
+      addLog(method, 'ERR', endpoint, `${desc} -> ${e.message}`, false, 'PVE');
+    }
+    throw e;
+  }
+}
+
+// ==================== MIKROTIK REST API ====================
+async function mtFetch(method, endpoint, bodyObj = null, desc = '', silent = false) {
+  saveConfig();
+  let mtTarget = document.getElementById('mtHost').value.trim().replace(/\/+$/, '');
+  if (!mtTarget) throw new Error('Indica la IP/URL del MikroTik (ex: http://192.168.2.135)');
+  if (!/^https?:\/\//i.test(mtTarget)) mtTarget = 'http://' + mtTarget;
+
+  const user = document.getElementById('mtUser').value.trim() || 'admin';
+  const pass = document.getElementById('mtPass').value;
+  const auth = 'Basic ' + btoa(`${user}:${pass}`);
+
+  const proxyUrl = `${window.location.origin}/mikrotik-rest${endpoint}`;
+  const headers = {
+    'Authorization': auth,
+    'X-Mikrotik-Url': mtTarget
+  };
+  let body = null;
+  if (bodyObj) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(bodyObj);
+  }
+
+  try {
+    const resp = await fetch(proxyUrl, { method, headers, body });
+    const text = await resp.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    if (!resp.ok) {
+      const errMsg = (json && (json.detail || json.message)) ? `${json.message || ''} ${json.detail || ''}`.trim() : (resp.statusText || text);
+      if (!silent) addLog(method, resp.status, `/rest${endpoint}`, `${desc} -> ${errMsg}`, false, 'MT');
+      throw new Error(`HTTP ${resp.status}: ${errMsg}`);
+    }
+    if (!silent) addLog(method, resp.status, `/rest${endpoint}`, desc || 'OK', true, 'MT');
+    return json;
+  } catch (e) {
+    if (!silent && !e.message.startsWith('HTTP ')) {
+      addLog(method, 'ERR', `/rest${endpoint}`, `${desc} -> ${e.message}`, false, 'MT');
+    }
+    throw e;
+  }
+}
+
+async function checkMikrotik() {
+  const badge = document.getElementById('mtStatusBadge');
+  const { lowerPrefix } = getPrefixInfo();
+  const targetPrefix = `${lowerPrefix}vlan-alumne-`;
+  try {
+    const res = await mtFetch('GET', '/system/resource', null, 'Verificar connexió RouterOS v7');
+    const vlans = await mtFetch('GET', '/interface/vlan', null, 'Llistar interfícies VLAN existents');
+    const labVlans = (vlans || []).filter(v => String(v.name || '').startsWith(targetPrefix));
+    badge.className = 'badge badge-green';
+    badge.textContent = `● MikroTik v${res.version || '7'} Connectat`;
+    document.getElementById('mtInfoSummary').textContent =
+      `VLANs (${targetPrefix}*): ${labVlans.length} (${labVlans.map(v => v['vlan-id']).slice(0, 6).join(', ')}${labVlans.length > 6 ? '...' : ''})`;
+  } catch (e) {
+    badge.className = 'badge badge-red';
+    badge.textContent = '● MikroTik Error';
+  }
+}
+
+async function syncMikrotikRest() {
+  const btn = document.getElementById('btnSyncMt');
+  const numStudents = Number(document.getElementById('massStudents').value) || 0;
+  const wanIface = document.getElementById('mtWan').value.trim() || 'ether1';
+  const lanIface = document.getElementById('mtLan').value.trim() || 'ether2';
+
+  if (numStudents < 1) return;
+  btn.disabled = true;
+
+  try {
+    const [dhcpClients, vlans, addresses, pools, dhcpNets, dhcpServers, addrLists, filters, nats] = await Promise.all([
+      mtFetch('GET', '/ip/dhcp-client', null, 'Llegir clients DHCP WAN'),
+      mtFetch('GET', '/interface/vlan', null, 'Llegir VLANs existents'),
+      mtFetch('GET', '/ip/address', null, 'Llegir adreces IP existents'),
+      mtFetch('GET', '/ip/pool', null, 'Llegir pools DHCP existents'),
+      mtFetch('GET', '/ip/dhcp-server/network', null, 'Llegir xarxes DHCP existents'),
+      mtFetch('GET', '/ip/dhcp-server', null, 'Llegir servidors DHCP existents'),
+      mtFetch('GET', '/ip/firewall/address-list', null, 'Llegir address-lists'),
+      mtFetch('GET', '/ip/firewall/filter', null, 'Llegir regles firewall'),
+      mtFetch('GET', '/ip/firewall/nat', null, 'Llegir regles NAT')
+    ]);
+
+    if (!dhcpClients.some(c => c.interface === wanIface)) {
+      await mtFetch('PUT', '/ip/dhcp-client', { interface: wanIface, disabled: 'false', comment: 'WAN Institut' }, `Afegir DHCP Client a ${wanIface}`);
+    }
+    await mtFetch('POST', '/ip/dns/set', { 'allow-remote-requests': 'true', servers: '1.1.1.1,8.8.8.8' }, 'Confirmar DNS 1.1.1.1 / 8.8.8.8');
+
+    const reqLists = [
+      { list: 'Xarxes-Alumnes', address: '10.0.0.0/8', comment: 'Totes les subxarxes del Lab' },
+      { list: 'Xarxa-Institut', address: '192.168.0.0/16', comment: 'Xarxes privades centre' },
+      { list: 'Xarxa-Institut', address: '172.16.0.0/12', comment: 'Xarxes privades centre' }
+    ];
+    for (const item of reqLists) {
+      if (!addrLists.some(a => a.list === item.list && a.address === item.address)) {
+        await mtFetch('PUT', '/ip/firewall/address-list', item, `Afegir address-list ${item.list}: ${item.address}`);
+      }
+    }
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (let i = 1; i <= numStudents; i++) {
+      const net = getStudentNetworkInfo(i);
+      const existingVlan = vlans.find(v => String(v['vlan-id']) === String(net.vlan) && v.interface === lanIface);
+      const activeVlanName = existingVlan ? existingVlan.name : net.vlanName;
+
+      if (!existingVlan) {
+        await mtFetch('PUT', '/interface/vlan', {
+          name: activeVlanName,
+          'vlan-id': String(net.vlan),
+          interface: lanIface,
+          comment: `${net.commentTag}Lab Alumne ${net.idxLabel}`
+        }, `Crear VLAN ${net.vlan} (${activeVlanName})`);
+        createdCount++;
+      } else {
+        skippedCount++;
+      }
+
+      if (!addresses.some(a => a.address === net.gwMask)) {
+        await mtFetch('PUT', '/ip/address', {
+          address: net.gwMask,
+          interface: activeVlanName,
+          comment: `${net.commentTag}GW Alumne ${net.idxLabel}`
+        }, `Assignar Gateway ${net.gwMask} a ${activeVlanName}`);
+      }
+
+      if (!pools.some(p => p.name === net.poolName)) {
+        await mtFetch('PUT', '/ip/pool', {
+          name: net.poolName,
+          ranges: net.poolRange
+        }, `Crear Pool DHCP ${net.poolName} (${net.poolRange})`);
+      }
+
+      if (!dhcpNets.some(n => n.address === net.subnet)) {
+        await mtFetch('PUT', '/ip/dhcp-server/network', {
+          address: net.subnet,
+          gateway: net.gw,
+          'dns-server': net.gw,
+          comment: `${net.commentTag}Xarxa Alumne ${net.idxLabel}`
+        }, `Configurar xarxa DHCP ${net.subnet}`);
+      }
+
+      if (!dhcpServers.some(d => d.interface === activeVlanName)) {
+        await mtFetch('PUT', '/ip/dhcp-server', {
+          name: net.dhcpName,
+          interface: activeVlanName,
+          'address-pool': net.poolName,
+          disabled: 'false'
+        }, `Activar servidor DHCP ${net.dhcpName}`);
+      }
+    }
+
+    if (filters.length === 0) {
+      const baseRules = [
+        { chain: 'input', 'connection-state': 'established,related,untracked', action: 'accept', comment: 'Accepta establert/relacionat (Router)' },
+        { chain: 'forward', 'connection-state': 'established,related,untracked', action: 'accept', comment: 'Accepta establert/relacionat (Forward)' },
+        { chain: 'input', 'src-address-list': 'Xarxes-Alumnes', protocol: 'udp', 'dst-port': '53,67', action: 'accept', comment: 'Permet DNS i DHCP al Lab' },
+        { chain: 'input', 'src-address-list': 'Xarxes-Alumnes', protocol: 'tcp', 'dst-port': '53', action: 'accept', comment: 'Permet DNS TCP al Lab' },
+        { chain: 'input', 'src-address-list': 'Xarxes-Alumnes', action: 'drop', comment: 'Bloqueja gestio router des dels alumnes' },
+        { chain: 'forward', 'src-address-list': 'Xarxes-Alumnes', 'dst-address-list': 'Xarxa-Institut', action: 'drop', comment: 'BLOQUEIG: Alumnes -> Xarxa Institut' },
+        { chain: 'forward', 'src-address-list': 'Xarxes-Alumnes', 'dst-address-list': 'Xarxes-Alumnes', action: 'drop', comment: 'BLOQUEIG: Alumne <-> Alumne' },
+        { chain: 'forward', 'src-address-list': 'Xarxes-Alumnes', 'out-interface': wanIface, action: 'accept', comment: 'Permet sortida a Internet' },
+        { chain: 'forward', action: 'drop', comment: 'Drop per defecte' }
+      ];
+      for (const r of baseRules) {
+        await mtFetch('PUT', '/ip/firewall/filter', r, `Firewall: ${r.comment}`);
+      }
+    } else {
+      addLog('INFO', 'OK', '/rest/ip/firewall/filter', `Firewall base ja configurat (${filters.length} regles actives, 10.0.0.0/8 cobert)`, true, 'MT');
+    }
+
+    if (!nats.some(n => n.chain === 'srcnat' && n['out-interface'] === wanIface && n.action === 'masquerade')) {
+      await mtFetch('PUT', '/ip/firewall/nat', {
+        chain: 'srcnat',
+        'out-interface': wanIface,
+        'src-address-list': 'Xarxes-Alumnes',
+        action: 'masquerade',
+        comment: 'NAT Sortida Lab'
+      }, `Afegir NAT Masquerade a ${wanIface}`);
+    }
+
+    addLog('DONE', '200', '/rest/sync', `MikroTik sincronitzat: ${createdCount} VLANs noves creades, ${skippedCount} ja existents respectades.`, true, 'MT');
+    await checkMikrotik();
+  } catch (e) {
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function cleanPracticeOnMikrotik() {
+  const numStudents = Number(document.getElementById('massStudents').value) || 0;
+  const base = Number(state.params.vlanBase);
+  const { raw } = getPrefixInfo();
+  const label = raw ? ` del prefix "${raw}"` : '';
+  if (!confirm(`Segur que vols eliminar del MikroTik només les VLANs ${base + 1}..${base + numStudents}${label} i els seus DHCP/IPs? (La resta de VLANs es conservaran)`)) return;
+
+  try {
+    const [vlans, addresses, pools, dhcpNets, dhcpServers] = await Promise.all([
+      mtFetch('GET', '/interface/vlan', null, '', true),
+      mtFetch('GET', '/ip/address', null, '', true),
+      mtFetch('GET', '/ip/pool', null, '', true),
+      mtFetch('GET', '/ip/dhcp-server/network', null, '', true),
+      mtFetch('GET', '/ip/dhcp-server', null, '', true)
+    ]);
+
+    for (let i = 1; i <= numStudents; i++) {
+      const net = getStudentNetworkInfo(i);
+      const vObj = vlans.find(v => String(v['vlan-id']) === String(net.vlan) && (!raw || v.name === net.vlanName));
+      const vName = vObj ? vObj.name : net.vlanName;
+
+      const dSrv = dhcpServers.find(d => d.interface === vName || d.name === net.dhcpName);
+      if (dSrv) await mtFetch('DELETE', `/ip/dhcp-server/${encodeURIComponent(dSrv['.id'])}`, null, `Eliminar DHCP ${dSrv.name}`);
+
+      const dNet = dhcpNets.find(n => n.address === net.subnet);
+      if (dNet) await mtFetch('DELETE', `/ip/dhcp-server/network/${encodeURIComponent(dNet['.id'])}`, null, `Eliminar xarxa DHCP ${net.subnet}`);
+
+      const dPool = pools.find(p => p.name === net.poolName);
+      if (dPool) await mtFetch('DELETE', `/ip/pool/${encodeURIComponent(dPool['.id'])}`, null, `Eliminar Pool ${net.poolName}`);
+
+      const ipObj = addresses.find(a => a.address === net.gwMask && a.interface === vName);
+      if (ipObj) await mtFetch('DELETE', `/ip/address/${encodeURIComponent(ipObj['.id'])}`, null, `Eliminar IP ${net.gwMask}`);
+
+      if (vObj) await mtFetch('DELETE', `/interface/vlan/${encodeURIComponent(vObj['.id'])}`, null, `Eliminar VLAN ${net.vlan} (${vName})`);
+    }
+    await checkMikrotik();
+  } catch {}
+}
+
+// ==================== TASQUES I SINCRONITZACIÓ PVE ====================
+async function waitForTask(node, upid) {
+  if (!upid || typeof upid !== 'string') return;
+  for (let i = 0; i < 90; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const st = await pveFetch('GET', `/nodes/${node}/tasks/${encodeURIComponent(upid)}/status`, null, '', true);
+    if (st && st.status === 'stopped') {
+      if (st.exitstatus && st.exitstatus !== 'OK') throw new Error(`Tasca Proxmox fallida: ${st.exitstatus}`);
+      return;
+    }
+  }
+}
+
+async function connectAndSync() {
+  try {
+    const nodes = await pveFetch('GET', '/nodes', null, 'Detectar nodes del clúster');
+    if (nodes && nodes.length > 0 && !document.getElementById('pveNode').value.trim()) {
+      document.getElementById('pveNode').value = nodes[0].node;
+    }
+    const node = document.getElementById('pveNode').value.trim() || (nodes[0] && nodes[0].node);
+    const [pools, resources] = await Promise.all([
+      pveFetch('GET', '/pools', null, 'Llistar Resource Pools'),
+      pveFetch('GET', '/cluster/resources?type=vm', null, 'Importar VMs (qemu), Contenidors (lxc) i Plantilles')
+    ]);
+    state.pools = pools || [];
+    state.resources = resources || [];
+
+    state.vmTemplates = state.resources.filter(r => r.template === 1 && r.type === 'qemu').sort((a, b) => a.vmid - b.vmid);
+    state.ctTemplates = state.resources.filter(r => r.template === 1 && r.type === 'lxc').sort((a, b) => a.vmid - b.vmid);
+
+    const storagesToCheck = Array.from(new Set(['local', state.params.storage]));
+    let foundImages = [];
+    for (const stg of storagesToCheck) {
+      try {
+        const content = await pveFetch('GET', `/nodes/${node}/storage/${stg}/content?content=vztmpl`, null, `Llistar imatges LXC a ${stg}`);
+        if (Array.isArray(content)) foundImages = foundImages.concat(content);
+      } catch {}
+    }
+    state.ctImages = foundImages;
+
+    document.getElementById('tplCounterBadge').textContent =
+      `Plantilles detectades: ${state.vmTemplates.length} VM · ${state.ctTemplates.length + state.ctImages.length} CT`;
+
+    const st = document.getElementById('connStatus');
+    st.className = 'badge badge-green';
+    st.textContent = `● Connectat · Node ${node}`;
+    document.getElementById('kpiNode').textContent = node;
+    saveConfig();
+    renderMachineSpecsTable();
+    renderMain();
+  } catch (e) {
+    const st = document.getElementById('connStatus');
+    st.className = 'badge badge-red';
+    st.textContent = '● PVE Error';
+  }
+}
+
+function calcNextId(studentNum, seq) {
+  const vlan = Number(state.params.vlanBase) + studentNum;
+  if (state.params.idScheme === '30000') return 30000 + (studentNum * 10) + seq;
+  return vlan * 10 + seq;
+}
+
+function renderMain() {
+  const labPools = state.pools
+    .filter(p => isLabPoolForCurrentPrefix(p.poolid))
+    .sort((a, b) => a.poolid.localeCompare(b.poolid, undefined, { numeric: true }));
+
+  const labPoolSet = new Set(labPools.map(p => p.poolid));
+  const nonTemplates = state.resources.filter(r => r.template !== 1);
+  const labInstances = nonTemplates.filter(r => labPoolSet.has(r.pool));
+  const infraInstances = state.resources.filter(r => !labPoolSet.has(r.pool));
+  const runningCount = labInstances.filter(r => r.status === 'running').length;
+
+  document.getElementById('kpiPools').textContent = labPools.length;
+  document.getElementById('cntPoolsTab').textContent = labPools.length;
+  document.getElementById('kpiLabVms').textContent = labInstances.length;
+  document.getElementById('kpiLabSub').textContent = `${runningCount} en marxa · ${labInstances.length - runningCount} aturades`;
+  document.getElementById('kpiInfra').textContent = infraInstances.length;
+  document.getElementById('cntClusterTab').textContent = state.resources.length;
+
+  const maxIdx = labPools.length > 0
+    ? Math.max(...labPools.map(p => parseInt(extractStudentNumFromPool(p.poolid), 10) || 1))
+    : 20;
+  document.getElementById('kpiNetSub').textContent = `Bridge ${state.params.bridge} · VLAN ${Number(state.params.vlanBase)+1}–${Number(state.params.vlanBase)+maxIdx}`;
+
+  const q = document.getElementById('searchFilter').value.toLowerCase();
+  const fType = document.getElementById('typeFilter').value;
+  const fStatus = document.getElementById('statusFilter').value;
+
+  const grid = document.getElementById('viewStudents');
+  grid.innerHTML = labPools.map(p => {
+    const numStr = extractStudentNumFromPool(p.poolid);
+    const num = parseInt(numStr, 10);
+    const net = getStudentNetworkInfo(num);
+    const user = getUserName(numStr);
+    let items = nonTemplates.filter(r => r.pool === p.poolid);
+    if (fType !== 'all') items = items.filter(r => r.type === fType);
+    if (fStatus !== 'all') items = items.filter(r => r.status === fStatus);
+
+    const matchCard = !q || p.poolid.toLowerCase().includes(q) || user.includes(q) || String(net.vlan).includes(q) ||
+      items.some(i => String(i.vmid).includes(q) || (i.name || '').toLowerCase().includes(q));
+    if (!matchCard) return '';
+
+    const instHtml = items.length === 0
+      ? `<div style="text-align:center;color:var(--muted);font-size:11px;">Cap instància assignada</div>`
+      : items.map(inst => `
+        <div class="inst-row">
+          <div>
+            <span style="color:${inst.status==='running'?'#34d399':'#94a3b8'}">●</span>
+            <strong>#${inst.vmid}</strong> ${inst.name || ''}
+            <span class="badge badge-blue" style="font-size:10px;padding:1px 5px;">${inst.type}</span>
+          </div>
+          <div style="display:flex;gap:4px;">
+            ${inst.status !== 'running'
+              ? `<button class="btn btn-dark" style="padding:2px 6px;font-size:10px;" onclick="powerInstance('${inst.type}',${inst.vmid},'start')">▶</button>`
+              : `<button class="btn btn-dark" style="padding:2px 6px;font-size:10px;" onclick="powerInstance('${inst.type}',${inst.vmid},'stop')">⏹</button>`}
+            <button class="btn btn-red" style="padding:2px 6px;font-size:10px;" onclick="deleteInstance('${inst.type}',${inst.vmid},'${inst.status}')">🗑</button>
+          </div>
+        </div>`).join('');
+
+    return `
+      <div class="student-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge badge-orange">Alumne ${numStr}</span>
+            <strong>${user}</strong>
+          </div>
+          <button class="btn btn-dark" style="padding:3px 7px;font-size:11px;" onclick="deleteStudent('${numStr}')" title="Eliminar Alumne i Pool">🗑️</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);">Pool: <strong style="color:var(--text)">${p.poolid}</strong></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="badge badge-orange">VLAN ${net.vlan}</span>
+          <span class="badge badge-cyan">${net.subnet}</span>
+          <span class="badge badge-blue">GW ${net.gw}</span>
+        </div>
+        <div class="inst-box">${instHtml}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline-indigo" style="flex:1;" onclick="deployStudentProfile(${num})">⚡ Desplegar Perfil (${state.machines.length} màq.)</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const tbody = document.getElementById('clusterTableBody');
+  tbody.innerHTML = state.resources
+    .filter(r => (!q || String(r.vmid).includes(q) || (r.name||'').toLowerCase().includes(q) || (r.pool||'').toLowerCase().includes(q)) &&
+                 (fType === 'all' || r.type === fType) && (fStatus === 'all' || r.status === fStatus))
+    .sort((a, b) => a.vmid - b.vmid)
+    .map(r => `
+      <tr>
+        <td><strong>${r.vmid}</strong></td>
+        <td>${r.name || '—'} ${r.template === 1 ? '<span class="badge badge-orange">Template</span>' : ''}</td>
+        <td><span class="badge badge-blue">${r.type}</span></td>
+        <td>${r.pool || '<span style="color:var(--muted)">Infra / Fora de pool</span>'}</td>
+        <td><span class="badge ${r.status==='running'?'badge-green':'badge-red'}">${r.status}</span></td>
+        <td style="display:flex;gap:4px;">
+          ${r.template !== 1 ? (r.status !== 'running'
+            ? `<button class="btn btn-dark" style="padding:3px 8px;" onclick="powerInstance('${r.type}',${r.vmid},'start')">▶</button>`
+            : `<button class="btn btn-dark" style="padding:3px 8px;" onclick="powerInstance('${r.type}',${r.vmid},'stop')">⏹</button>`) : ''}
+          ${r.template !== 1 ? `<button class="btn btn-red" style="padding:3px 8px;" onclick="deleteInstance('${r.type}',${r.vmid},'${r.status}')">🗑️</button>` : ''}
+        </td>
+      </tr>`).join('');
+
+  renderScripts();
+}
+
+async function createStudentInfra(num) {
+  const numStr = String(num).padStart(2, '0');
+  const user = getUserName(numStr);
+  const pool = getPoolName(numStr);
+  const { raw } = getPrefixInfo();
+  const tag = raw ? `[${raw}] ` : '';
+  await pveFetch('POST', '/access/users', { userid: user, password: state.params.pass, comment: `${tag}Alumne ${numStr}` }, `Crear usuari ${user}`).catch(() => {});
+  await pveFetch('POST', '/pools', { poolid: pool, comment: `${tag}Màquines de l'alumne ${numStr}` }, `Crear Pool ${pool}`).catch(() => {});
+  await pveFetch('PUT', '/access/acl', { path: `/pool/${pool}`, users: user, roles: 'PVEVMUser' }, `Assignar PVEVMUser a ${pool}`).catch(() => {});
+}
+
+async function createSingleStudent() {
+  const existing = state.pools
+    .filter(p => isLabPoolForCurrentPrefix(p.poolid))
+    .map(p => parseInt(extractStudentNumFromPool(p.poolid), 10))
+    .filter(n => !isNaN(n));
+  const next = existing.length ? Math.max(...existing) + 1 : 1;
+  await createStudentInfra(next);
+  await connectAndSync();
+}
+
+async function provisionMachineSpec(studentNum, spec, seqIdx, usedIds) {
+  const node = document.getElementById('pveNode').value.trim();
+  const numStr = String(studentNum).padStart(2, '0');
+  const pool = getPoolName(numStr);
+  const vlan = Number(state.params.vlanBase) + studentNum;
+
+  let seq = seqIdx;
+  let newId = calcNextId(studentNum, seq);
+  while (usedIds.has(newId)) { seq++; newId = calcNextId(studentNum, seq); }
+  usedIds.add(newId);
+
+  const cleanSuffix = (spec.suffix || `m0${seq}`).replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+  const hostname = getHostName(numStr, cleanSuffix);
+
+  if (spec.source.startsWith('vm-tpl:')) {
+    const tplId = spec.source.split(':')[1];
+    let upid;
+    try {
+      upid = await pveFetch('POST', `/nodes/${node}/qemu/${tplId}/clone`, {
+        newid: newId, name: hostname, pool, full: state.params.cloneMode
+      }, `Clonar VM #${newId} (${hostname}) des de plantilla ${tplId}`);
+    } catch (e) {
+      if (state.params.cloneMode === '0') {
+        upid = await pveFetch('POST', `/nodes/${node}/qemu/${tplId}/clone`, {
+          newid: newId, name: hostname, pool, full: '1'
+        }, `Clonar VM #${newId} (${hostname}) en mode Full Clone`);
+      } else { throw e; }
+    }
+    await waitForTask(node, upid);
+
+    await pveFetch('PUT', `/nodes/${node}/qemu/${newId}/config`, {
+      cores: spec.cores,
+      memory: spec.memory,
+      net0: `virtio,bridge=${state.params.bridge},tag=${vlan}`
+    }, `Assignar ${spec.cores} vCPU, ${spec.memory}MB RAM i VLAN ${vlan} a VM #${newId}`);
+
+    if (spec.diskGb > 0) {
+      const cfg = await pveFetch('GET', `/nodes/${node}/qemu/${newId}/config`, null, '', true);
+      const diskKey = ['scsi0', 'virtio0', 'sata0', 'ide0'].find(k => cfg && cfg[k]) || 'scsi0';
+      await pveFetch('PUT', `/nodes/${node}/qemu/${newId}/resize`, {
+        disk: diskKey, size: `${spec.diskGb}G`
+      }, `Ajustar disc (${diskKey}) a ${spec.diskGb}GB a VM #${newId}`).catch(() => {});
+    }
+
+  } else if (spec.source.startsWith('ct-tpl:')) {
+    const tplId = spec.source.split(':')[1];
+    const upid = await pveFetch('POST', `/nodes/${node}/lxc/${tplId}/clone`, {
+      newid: newId, hostname, pool, full: state.params.cloneMode
+    }, `Clonar Contenidor #${newId} (${hostname}) des de plantilla CT ${tplId}`);
+    await waitForTask(node, upid);
+
+    await pveFetch('PUT', `/nodes/${node}/lxc/${newId}/config`, {
+      cores: spec.cores,
+      memory: spec.memory,
+      net0: `name=eth0,bridge=${state.params.bridge},tag=${vlan},ip=dhcp`
+    }, `Assignar ${spec.cores} vCPU, ${spec.memory}MB RAM i VLAN ${vlan} a CT #${newId}`);
+
+    if (spec.diskGb > 0) {
+      await pveFetch('PUT', `/nodes/${node}/lxc/${newId}/resize`, {
+        disk: 'rootfs', size: `${spec.diskGb}G`
+      }, `Ajustar rootfs a ${spec.diskGb}GB a CT #${newId}`).catch(() => {});
+    }
+
+  } else {
+    const ostemplate = spec.source.replace(/^ct-img:/, '');
+    const upid = await pveFetch('POST', `/nodes/${node}/lxc`, {
+      vmid: newId,
+      ostemplate,
+      hostname,
+      pool,
+      storage: state.params.storage,
+      rootfs: `${state.params.storage}:${spec.diskGb || 4}`,
+      memory: spec.memory,
+      cores: spec.cores,
+      unprivileged: 1,
+      password: state.params.pass,
+      net0: `name=eth0,bridge=${state.params.bridge},tag=${vlan},ip=dhcp`
+    }, `Crear Contenidor LXC #${newId} (${hostname}: ${spec.cores} vCPU, ${spec.memory}MB, ${spec.diskGb}GB, VLAN ${vlan})`);
+    await waitForTask(node, upid);
+  }
+}
+
+async function deployStudentProfile(studentNum) {
+  const usedIds = new Set(state.resources.map(r => Number(r.vmid)));
+  for (let m = 0; m < state.machines.length; m++) {
+    await provisionMachineSpec(studentNum, state.machines[m], m + 1, usedIds);
+  }
+  await connectAndSync();
+}
+
+async function deployAll() {
+  const n = Number(document.getElementById('massStudents').value);
+  if (n < 1 || state.machines.length < 1) return;
+
+  const btn = document.getElementById('btnDeployAll');
+  const pWrap = document.getElementById('deployProgressWrap');
+  const pFill = document.getElementById('deployProgressFill');
+  const pTxt = document.getElementById('deployStatusText');
+
+  btn.disabled = true;
+  pWrap.style.display = 'block';
+  pTxt.style.display = 'block';
+
+  const totalSteps = n * state.machines.length;
+  let doneSteps = 0;
+  const usedIds = new Set(state.resources.map(r => Number(r.vmid)));
+
+  try {
+    for (let i = 1; i <= n; i++) {
+      const numStr = String(i).padStart(2, '0');
+      pTxt.textContent = `Configurant usuari i Pool ${getPoolName(numStr)} (${i}/${n})...`;
+      await createStudentInfra(i);
+      for (let m = 0; m < state.machines.length; m++) {
+        doneSteps++;
+        pTxt.textContent = `Desplegant ${getPoolName(numStr)} · Màquina ${m + 1}/${state.machines.length} (${state.machines[m].suffix}) [${doneSteps}/${totalSteps}]...`;
+        await provisionMachineSpec(i, state.machines[m], m + 1, usedIds);
+        pFill.style.width = `${Math.round((doneSteps / totalSteps) * 100)}%`;
+      }
+    }
+    pTxt.textContent = `✅ Desplegament completat (${totalSteps} instàncies creades).`;
+  } catch (e) {
+    pTxt.textContent = `⚠️ Aturat per error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    await connectAndSync();
+  }
+}
+
+async function powerInstance(type, vmid, action) {
+  const node = document.getElementById('pveNode').value.trim();
+  const upid = await pveFetch('POST', `/nodes/${node}/${type}/${vmid}/status/${action}`, null, `${action.toUpperCase()} ${type} #${vmid}`);
+  await waitForTask(node, upid);
+  await connectAndSync();
+}
+
+async function deleteInstance(type, vmid, status) {
+  const node = document.getElementById('pveNode').value.trim();
+  if (status === 'running') {
+    const upidStop = await pveFetch('POST', `/nodes/${node}/${type}/${vmid}/status/stop`, null, `Aturar ${type} #${vmid} abans d'eliminar`).catch(() => null);
+    await waitForTask(node, upidStop);
+  }
+  const upidDel = await pveFetch('DELETE', `/nodes/${node}/${type}/${vmid}?purge=1`, null, `Eliminar ${type} #${vmid} (purge=1)`);
+  await waitForTask(node, upidDel);
+  await connectAndSync();
+}
+
+async function deleteStudent(numStr) {
+  const pool = getPoolName(numStr);
+  const user = getUserName(numStr);
+  const node = document.getElementById('pveNode').value.trim();
+  const items = state.resources.filter(r => r.pool === pool && r.template !== 1);
+  for (const inst of items) {
+    if (inst.status === 'running') {
+      const uStop = await pveFetch('POST', `/nodes/${node}/${inst.type}/${inst.vmid}/status/stop`, null, `Aturar #${inst.vmid}`).catch(() => null);
+      await waitForTask(node, uStop);
+    }
+    const uDel = await pveFetch('DELETE', `/nodes/${node}/${inst.type}/${inst.vmid}?purge=1`, null, `Eliminar #${inst.vmid}`).catch(() => null);
+    await waitForTask(node, uDel);
+  }
+  await pveFetch('DELETE', `/pools/${pool}`, null, `Eliminar Pool ${pool}`).catch(() => {});
+  await pveFetch('DELETE', `/access/users/${encodeURIComponent(user)}`, null, `Eliminar usuari ${user}`).catch(() => {});
+  await connectAndSync();
+}
+
+async function deleteAll() {
+  const { raw, poolPrefix } = getPrefixInfo();
+  const targetDesc = raw ? `amb el prefix "${raw}" (${poolPrefix}Lab-AlumneXX)` : `sense prefix (Lab-AlumneXX)`;
+  if (!confirm(`Segur que vols eliminar TOTS els alumnes, Pools i instàncies de Proxmox ${targetDesc}?`)) return;
+  const labPools = state.pools.filter(p => isLabPoolForCurrentPrefix(p.poolid));
+  for (const p of labPools) {
+    await deleteStudent(extractStudentNumFromPool(p.poolid));
+  }
+}
+
+function switchLeftTab(tab) {
+  document.getElementById('viewStudents').style.display = tab === 'students' ? 'grid' : 'none';
+  document.getElementById('viewCluster').style.display = tab === 'cluster' ? 'block' : 'none';
+  document.getElementById('tabStudentsBtn').className = tab === 'students' ? 'tab active' : 'tab';
+  document.getElementById('tabClusterBtn').className = tab === 'cluster' ? 'tab active' : 'tab';
+}
+
+function switchRightTab(tab) {
+  document.getElementById('viewLog').style.display = tab === 'log' ? 'flex' : 'none';
+  document.getElementById('viewBash').style.display = tab === 'bash' ? 'block' : 'none';
+  document.getElementById('viewRsc').style.display = tab === 'rsc' ? 'block' : 'none';
+  document.getElementById('tabLogBtn').className = tab === 'log' ? 'tab active-orange' : 'tab';
+  document.getElementById('tabBashBtn').className = tab === 'bash' ? 'tab active-orange' : 'tab';
+  document.getElementById('tabRscBtn').className = tab === 'rsc' ? 'tab active-orange' : 'tab';
+}
+
+function openParamsModal() {
+  document.getElementById('cfgPrefix').value = state.params.prefix || '';
+  document.getElementById('cfgBridge').value = state.params.bridge;
+  document.getElementById('cfgStorage').value = state.params.storage;
+  document.getElementById('cfgVlanBase').value = state.params.vlanBase;
+  document.getElementById('cfgPass').value = state.params.pass;
+  document.getElementById('cfgCloneMode').value = state.params.cloneMode;
+  document.getElementById('cfgIdScheme').value = state.params.idScheme;
+  updatePrefixPreview();
+  document.getElementById('paramsModal').style.display = 'grid';
+}
+function closeParamsModal() { document.getElementById('paramsModal').style.display = 'none'; }
+function saveParams() {
+  const cleanPrefix = normalizePrefix(document.getElementById('cfgPrefix').value).raw;
+  state.params = {
+    prefix: cleanPrefix,
+    bridge: document.getElementById('cfgBridge').value.trim(),
+    storage: document.getElementById('cfgStorage').value.trim(),
+    vlanBase: Number(document.getElementById('cfgVlanBase').value),
+    pass: document.getElementById('cfgPass').value,
+    cloneMode: document.getElementById('cfgCloneMode').value,
+    idScheme: document.getElementById('cfgIdScheme').value
+  };
+  document.getElementById('lblBridgeTop').textContent = state.params.bridge;
+  updatePrefixUiIndicators();
+  saveConfig();
+  closeParamsModal();
+  renderMain();
+}
+
+function renderScripts() {
+  const n = Number(document.getElementById('massStudents').value) || 20;
+  const p = state.params;
+  const { raw, poolPrefix, lowerPrefix } = getPrefixInfo();
+
+  // 1. Bash Proxmox
+  const cmds = state.machines.map((m, idx) => {
+    const seq = idx + 1;
+    const idExpr = p.idScheme === '30000' ? `$((30000 + NUM * 10 + ${seq}))` : `$((VLAN * 10 + ${seq}))`;
+    const cleanSfx = (m.suffix || `m0${seq}`).toLowerCase();
+    if (m.source.startsWith('vm-tpl:')) {
+      const tpl = m.source.split(':')[1];
+      return `  ID=${idExpr}
+  qm clone ${tpl} $ID --name "\${PREFIX_LOWER}al\${i}-${cleanSfx}" --pool "\${PREFIX_POOL}Lab-Alumne\${i}"
+  qm set $ID --cores ${m.cores} --memory ${m.memory} --net0 virtio,bridge=${p.bridge},tag=$VLAN
+  qm resize $ID scsi0 ${m.diskGb}G`;
+    } else if (m.source.startsWith('ct-tpl:')) {
+      const tpl = m.source.split(':')[1];
+      return `  ID=${idExpr}
+  pct clone ${tpl} $ID --hostname "\${PREFIX_LOWER}al\${i}-${cleanSfx}" --pool "\${PREFIX_POOL}Lab-Alumne\${i}"
+  pct set $ID --cores ${m.cores} --memory ${m.memory} --net0 name=eth0,bridge=${p.bridge},tag=$VLAN,ip=dhcp
+  pct resize $ID rootfs ${m.diskGb}G`;
+    } else {
+      const img = m.source.replace(/^ct-img:/, '');
+      return `  ID=${idExpr}
+  pct create $ID "${img}" --hostname "\${PREFIX_LOWER}al\${i}-${cleanSfx}" --pool "\${PREFIX_POOL}Lab-Alumne\${i}" --storage ${p.storage} --rootfs ${p.storage}:${m.diskGb} --cores ${m.cores} --memory ${m.memory} --unprivileged 1 --password "${p.pass}" --net0 name=eth0,bridge=${p.bridge},tag=$VLAN,ip=dhcp`;
+    }
+  }).join('\n\n');
+
+  document.getElementById('bashOutput').textContent = `#!/bin/bash
+# Script Bash equivalent per a Proxmox VE (Prefix: "${raw || 'CAP'}")
+NUM_ALUMNES=${n}
+PREFIX_POOL="${poolPrefix}"
+PREFIX_LOWER="${lowerPrefix}"
+
+for i in $(seq -w 1 $NUM_ALUMNES); do
+  NUM=$((10#$i))
+  VLAN=$((${p.vlanBase} + NUM))
+  pveum user add "\${PREFIX_LOWER}alumne\${i}@pve" --password "${p.pass}"
+  pvesh create /pools --poolid "\${PREFIX_POOL}Lab-Alumne\${i}"
+  pveum acl modify "/pool/\${PREFIX_POOL}Lab-Alumne\${i}" --users "\${PREFIX_LOWER}alumne\${i}@pve" --roles PVEVMUser
+
+${cmds}
+done`;
+
+  // 2. MikroTik RouterOS v7 (.rsc idempotent)
+  const wanIface = document.getElementById('mtWan').value.trim() || 'ether1';
+  const lanIface = document.getElementById('mtLan').value.trim() || 'ether2';
+  const base = Number(p.vlanBase);
+  const octetExpr = (base === 100) ? '$i' : '$vlanId';
+  const labelExpr = (base === 100) ? '$i' : '$vlanId';
+  const rscCommentPrefix = raw ? `[${raw}] ` : '';
+
+  document.getElementById('rscOutput').textContent = `{
+# ==============================================================================
+# CONFIGURACIÓ MIKROTIK ROUTEROS v7 (IDEMPOTENT / COHERENT AMB CONFIG EXISTENT)
+# Prefix de pràctica: "${raw || 'CAP'}"
+# ==============================================================================
+:local numAlumnes ${n}
+:local vlanBase ${base}
+:local prefix "${lowerPrefix}"
+:local commentTag "${rscCommentPrefix}"
+:local lanInterface "${lanIface}"
+:local wanInterface "${wanIface}"
+
+# 1. WAN i DNS (només si no existeixen)
+:if ([:len [/ip dhcp-client find interface=$wanInterface]] = 0) do={
+    /ip dhcp-client add interface=$wanInterface disabled=no comment="WAN Institut"
+}
+/ip dns set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
+
+# 2. Address Lists d'aïllament (10.0.0.0/8 cobreix totes les VLANs d'aula)
+:if ([:len [/ip firewall address-list find list="Xarxes-Alumnes" address="10.0.0.0/8"]] = 0) do={
+    /ip firewall address-list add list=Xarxes-Alumnes address=10.0.0.0/8 comment="Totes les subxarxes del Lab"
+}
+:if ([:len [/ip firewall address-list find list="Xarxa-Institut" address="192.168.0.0/16"]] = 0) do={
+    /ip firewall address-list add list=Xarxa-Institut address=192.168.0.0/16 comment="Xarxes privades centre"
+}
+:if ([:len [/ip firewall address-list find list="Xarxa-Institut" address="172.16.0.0/12"]] = 0) do={
+    /ip firewall address-list add list=Xarxa-Institut address=172.16.0.0/12 comment="Xarxes privades centre"
+}
+
+# 3. Bucle VLANs + Gateways + DHCP (respecta les VLANs ja existents)
+:for i from=1 to=$numAlumnes do={
+    :local vlanId ($vlanBase + $i)
+    :local idx (${labelExpr})
+    :local oct (${octetExpr})
+    :local vlanName ($prefix . "vlan-alumne-" . $idx)
+    :local subnet ("10." . $oct . ".0.0/24")
+    :local gwIp ("10." . $oct . ".0.1")
+    :local gwIpMask ($gwIp . "/24")
+    :local poolRange ("10." . $oct . ".0.50-10." . $oct . ".0.200")
+    :local poolName ($prefix . "pool-alumne-" . $idx)
+    :local dhcpName ($prefix . "dhcp-alumne-" . $idx)
+
+    :if ([:len [/interface vlan find vlan-id=$vlanId interface=$lanInterface]] = 0) do={
+        /interface vlan add name=$vlanName vlan-id=$vlanId interface=$lanInterface comment=($commentTag . "Lab Alumne " . $idx)
+    } else={
+        :set vlanName [/interface vlan get [find vlan-id=$vlanId interface=$lanInterface] name]
+    }
+    :if ([:len [/ip address find address=$gwIpMask]] = 0) do={
+        /ip address add address=$gwIpMask interface=$vlanName comment=($commentTag . "GW Alumne " . $idx)
+    }
+    :if ([:len [/ip pool find name=$poolName]] = 0) do={
+        /ip pool add name=$poolName ranges=$poolRange
+    }
+    :if ([:len [/ip dhcp-server network find address=$subnet]] = 0) do={
+        /ip dhcp-server network add address=$subnet gateway=$gwIp dns-server=$gwIp comment=($commentTag . "Xarxa Alumne " . $idx)
+    }
+    :if ([:len [/ip dhcp-server find interface=$vlanName]] = 0) do={
+        /ip dhcp-server add name=$dhcpName interface=$vlanName address-pool=$poolName disabled=no
+    }
+}
+
+# 4. Firewall Filter i NAT (només si el router encara no té regles)
+:if ([:len [/ip firewall filter find]] = 0) do={
+    /ip firewall filter
+    add chain=input connection-state=established,related,untracked action=accept comment="Accepta establert/relacionat (Router)"
+    add chain=forward connection-state=established,related,untracked action=accept comment="Accepta establert/relacionat (Forward)"
+    add chain=input src-address-list=Xarxes-Alumnes protocol=udp dst-port=53,67 action=accept comment="Permet DNS i DHCP al Lab"
+    add chain=input src-address-list=Xarxes-Alumnes protocol=tcp dst-port=53 action=accept comment="Permet DNS TCP al Lab"
+    add chain=input src-address-list=Xarxes-Alumnes action=drop comment="Bloqueja gestio router des dels alumnes"
+    add chain=forward src-address-list=Xarxes-Alumnes dst-address-list=Xarxa-Institut action=drop comment="BLOQUEIG: Alumnes -> Xarxa Institut"
+    add chain=forward src-address-list=Xarxes-Alumnes dst-address-list=Xarxes-Alumnes action=drop comment="BLOQUEIG: Alumne <-> Alumne"
+    add chain=forward src-address-list=Xarxes-Alumnes out-interface=$wanInterface action=accept comment="Permet sortida a Internet"
+    add chain=forward action=drop comment="Drop per defecte"
+}
+:if ([:len [/ip firewall nat find chain="srcnat" out-interface=$wanInterface action="masquerade"]] = 0) do={
+    /ip firewall nat add chain=srcnat out-interface=$wanInterface src-address-list=Xarxes-Alumnes action=masquerade comment="NAT Sortida Lab"
+}
+
+:put "Sincronitzacio MikroTik completada!"
+}`;
+}
+
+function copyText(elId) {
+  navigator.clipboard.writeText(document.getElementById(elId).textContent);
+  alert('Copiat al porta-retalls!');
+}
+
+loadConfig();
+</script>
 </body>
 </html>
